@@ -389,9 +389,4 @@ Wake-up 배타성, 모델 비교, 리포트 생성 문구까지 pytest로 검증
   시나리오에 대한 민감도 분석, 실차 장기 운용 데이터 기반 FAIL_SAFE
   오탐/미탐률 평가.
 
-## 커스텀 서브에이전트
 
-`.claude/agents/`에 7개 역할 분리 서브에이전트(sensor-simulator,
-hardware-data-engineer, state-machine-verifier, power-optimizer,
-dashboard-builder, paper-writer, qa-judge)가 정의되어 있다. 각자 담당
-모듈만 수정하고 main agent에게 요약 보고하도록 지시되어 있다.
