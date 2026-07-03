@@ -29,6 +29,7 @@ from src.config import (
     MMWAVE_PROFILES,
     MODEL_ALL_ON,
     RANDOM_SEED,
+    SAMPLE_DATA_DIR,
     ScenarioConfig,
 )
 from src.pipeline import run_full_pipeline as _run_full_pipeline
@@ -181,7 +182,25 @@ def _render_sidebar() -> tuple[ScenarioConfig, bytes | None]:
     )
 
     st.sidebar.markdown("---")
-    uploaded_file = st.sidebar.file_uploader("hardware_log.csv 업로드", type=["csv"])
+    st.sidebar.subheader("hardware_log.csv")
+    st.sidebar.caption(
+        "업로드 없이도 dummy 데이터로 바로 실행됩니다. "
+        "sample_data/의 예시 CSV를 선택하면 파일 업로드 없이 실제 로그 형태의 "
+        "결과를 즉시 볼 수 있습니다 (익명 방문자용 데모 경로)."
+    )
+    sample_files = (
+        sorted(p.name for p in SAMPLE_DATA_DIR.glob("*.csv")) if SAMPLE_DATA_DIR.exists() else []
+    )
+    no_sample_option = "(dummy 데이터 사용 - 선택 안 함)"
+    sample_choice = st.sidebar.selectbox(
+        "샘플 hardware_log.csv 선택",
+        options=[no_sample_option, *sample_files],
+        index=0,
+        key="sample_hardware_choice",
+    )
+    uploaded_file = st.sidebar.file_uploader(
+        "또는 직접 hardware_log.csv 업로드 (선택 시 샘플보다 우선 적용)", type=["csv"]
+    )
 
     scenario = ScenarioConfig(
         duration_s=float(st.session_state["duration_s"]),
@@ -200,8 +219,14 @@ def _render_sidebar() -> tuple[ScenarioConfig, bytes | None]:
         dht22_failure=bool(st.session_state["dht22_failure"]),
         seed=RANDOM_SEED,
     )
-    uploaded_bytes = uploaded_file.getvalue() if uploaded_file is not None else None
-    return scenario, uploaded_bytes
+    if uploaded_file is not None:
+        # 사용자가 직접 업로드한 파일이 sample_data 선택보다 항상 우선한다.
+        hardware_bytes = uploaded_file.getvalue()
+    elif sample_choice != no_sample_option:
+        hardware_bytes = (SAMPLE_DATA_DIR / sample_choice).read_bytes()
+    else:
+        hardware_bytes = None
+    return scenario, hardware_bytes
 
 
 def main() -> None:
@@ -320,20 +345,24 @@ def main() -> None:
             result["is_dummy"],
         )
         st.success(f"{len(saved)}개 파일이 outputs/ 이하에 저장되었습니다.")
-        st.session_state["_last_bundle"] = {k: str(v) for k, v in saved.items()}
+        # 웹 배포 환경에서는 여러 익명 사용자가 동시에 같은 outputs/ 경로에
+        # 쓸 수 있으므로, 다운로드는 "지금 이 세션이 생성한 파일의 바이트"를
+        # 이 시점에 즉시 메모리로 읽어 session_state에 고정한다. 이후
+        # 다른 사용자가 같은 파일을 덮어써도 이 세션의 다운로드 버튼은
+        # 항상 자신이 생성한 내용만 서빙한다 (경로를 재읽지 않음).
+        st.session_state["_last_bundle"] = {
+            name: Path(path).read_bytes() for name, path in saved.items()
+        }
 
     if "_last_bundle" in st.session_state:
-        with st.expander("최근 저장된 paper-ready 파일 목록"):
-            for name, path in st.session_state["_last_bundle"].items():
-                st.write(f"- **{name}**: `{path}`")
-                file_path = Path(path)
-                if file_path.exists():
-                    st.download_button(
-                        f"{name} 다운로드",
-                        data=file_path.read_bytes(),
-                        file_name=name,
-                        key=f"dl_{name}",
-                    )
+        with st.expander("최근 생성된 paper-ready 파일 다운로드"):
+            for name, data in st.session_state["_last_bundle"].items():
+                st.download_button(
+                    f"{name} 다운로드",
+                    data=data,
+                    file_name=name,
+                    key=f"dl_{name}",
+                )
 
     # ---------------------------------------------------------------- 9
     st.subheader("9. Judge Mode Feedback")

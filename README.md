@@ -70,13 +70,17 @@ engine(`src/`)을 통해 생성되며, pytest로 상태 전이·전력 계산의
 │   ├── clean_outputs.py        # outputs/ 초기화
 │   └── regenerate_sample_data.py  # sample_data/ CSV 재생성(참고용)
 ├── sample_data/                # 재현 가능한 예시 hardware_log.csv 3종
+├── hardware/                   # 실제 Raspberry Pi 전용 코드 (dashboard는 import하지 않음)
+│   ├── pi_hardware_logger.py   # gpiozero/RPi.GPIO/adafruit_dht/board 사용
+│   └── requirements-pi.txt     # 하드웨어 전용 의존성 (웹 배포 requirements.txt와 분리)
 ├── tests/                      # pytest 단위/통합 테스트
 ├── outputs/
 │   ├── csv/                    # 논문용 표
 │   ├── figures/                # 논문용 그림(PNG)
 │   └── report/                 # 결과 해석문/캡션/한계/Q&A(TXT)
+├── docs/                       # GitHub Pages 홈페이지 + paper-ready 샘플 산출물
 ├── .claude/agents/             # 커스텀 서브에이전트 7종 (역할 분리)
-└── requirements.txt
+└── requirements.txt             # 웹 배포용 (Raspberry Pi 전용 패키지 미포함)
 ```
 
 ### 데이터 흐름
@@ -155,6 +159,36 @@ python scripts/generate_paper_outputs.py --list-demos
 ```bash
 python scripts/clean_outputs.py
 ```
+
+### 3.6 Streamlit Community Cloud 배포
+
+익명 사용자가 PowerShell이나 로컬 설치 없이 웹 링크만으로 접속할 수
+있도록 아래 순서로 배포한다 (GitHub push가 먼저 필요 — 자세한 절차는
+[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) 참고).
+
+1. [share.streamlit.io](https://share.streamlit.io) 접속 후 GitHub 계정으로 로그인
+2. **"New app"** 클릭
+3. **Repository**: 이 프로젝트를 push한 GitHub repo 선택
+4. **Branch**: `main` 선택
+5. **Main file path**: `app/streamlit_app.py` 입력 (entry point는 이
+   경로로 고정되어 있으며, 저장소에 다른 `streamlit_app.py`가 존재하지
+   않는다)
+6. **Deploy** 클릭 → 수 분 내 `https://<app-name>.streamlit.app` 형태의
+   공개 URL이 발급된다
+
+배포 환경 참고사항:
+
+- `requirements.txt`(저장소 루트)만 설치되며, `gpiozero`/`RPi.GPIO`/
+  `adafruit_dht`/`board` 등 Raspberry Pi 전용 패키지는 포함되어 있지
+  않다. 이 패키지들은 `hardware/pi_hardware_logger.py`에서만 사용되고
+  `hardware/requirements-pi.txt`로 별도 관리되므로 Cloud 환경에서
+  import 오류가 발생하지 않는다.
+- 업로드 없이도 dummy 데이터로 바로 실행되며, 사이드바에서
+  `sample_data/`의 예시 CSV를 선택하면 실제 파일 업로드 없이도 CSV 기반
+  결과를 볼 수 있다.
+- "Paper-ready 자동 생성" 버튼은 서버의 `outputs/`에도 저장하지만,
+  다운로드 버튼은 그 순간 메모리에 읽어들인 바이트를 서빙하므로 여러
+  익명 사용자가 동시에 접속해도 서로의 다운로드 내용이 섞이지 않는다.
 
 ## 4. 입력 CSV 형식
 
