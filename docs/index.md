@@ -9,14 +9,13 @@ title: SafeGuard TwinLab Agent
 sensor를 결합해 event-driven state machine, 추정 전력(estimated power)
 계산, 비교 모델 분석, 논문용 산출물까지 자동 생성한다.
 
-**[▶ Live Demo (Streamlit)](https://share.streamlit.io/<GITHUB_USERNAME>/<REPO_NAME>/main/app/streamlit_app.py)**
+**[▶ Live Demo (Streamlit)](https://safeguard-mmwave-simulator.streamlit.app)**
 &nbsp;|&nbsp;
-**[💻 Source Code (GitHub)](https://github.com/<GITHUB_USERNAME>/<REPO_NAME>)**
+**[💻 Source Code (GitHub)](https://github.com/yoontf0/safeguard-mmwave-simulator)**
 &nbsp;|&nbsp;
 **[📄 Paper-ready Sample Outputs](sample_outputs/)**
 
-> 배포 전이라면 위 Live Demo/Source Code 링크의 `<GITHUB_USERNAME>/<REPO_NAME>`을
-> 실제 값으로 바꿔야 한다.
+> 위 Live Demo/Source Code 링크는 모두 실제 배포된 값으로 반영되어 있다.
 
 ---
 
@@ -52,7 +51,7 @@ UWB/mmWave/Camera virtual log  ┘         │
 `state_machine.py`, `device_activation.py`, `power_model.py`,
 `model_comparison.py`, `report_generator.py`, `pipeline.py`. 대시보드는
 `app/streamlit_app.py`이며 CLI 진입점은 `scripts/generate_paper_outputs.py`다.
-자세한 구조는 저장소의 [README.md](https://github.com/<GITHUB_USERNAME>/<REPO_NAME>#readme)를 참고.
+자세한 구조는 저장소의 [README.md](https://github.com/yoontf0/safeguard-mmwave-simulator#readme)를 참고.
 
 ## 논문용 설명 (Paper-oriented notes)
 
@@ -91,4 +90,4 @@ UWB/mmWave/Camera virtual log  ┘         │
 - Custom subagent 7종(`.claude/agents/`)으로 역할을 분리해 sensor
   simulation, hardware data engineering, state machine 검증, 전력
   최적화, 대시보드, 논문 작성, 심사위원 관점 QA를 각각 담당한다.
-- 인용(citation)은 저장소의 [CITATION.cff](https://github.com/<GITHUB_USERNAME>/<REPO_NAME>/blob/main/CITATION.cff)를 참고.
+- 인용(citation)은 저장소의 [CITATION.cff](https://github.com/yoontf0/safeguard-mmwave-simulator/blob/main/CITATION.cff)를 참고.

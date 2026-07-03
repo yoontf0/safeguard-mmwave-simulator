@@ -1,12 +1,11 @@
 # SafeGuard TwinLab Agent
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/<GITHUB_USERNAME>/<REPO_NAME>/main/app/streamlit_app.py)
-[![Source Code](https://img.shields.io/badge/Source-GitHub-181717?logo=github)](https://github.com/<GITHUB_USERNAME>/<REPO_NAME>)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://safeguard-mmwave-simulator.streamlit.app)
+[![Source Code](https://img.shields.io/badge/Source-GitHub-181717?logo=github)](https://github.com/yoontf0/safeguard-mmwave-simulator)
 [![Paper-ready Outputs](https://img.shields.io/badge/Paper--ready-Outputs-blue)](docs/sample_outputs/)
 
-> 배지 링크의 `<GITHUB_USERNAME>/<REPO_NAME>`은 실제 GitHub 저장소로 push한
-> 뒤 Streamlit Community Cloud에 배포하고 나서 실제 값으로 교체해야 한다
-> (자세한 절차는 [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) 참고).
+> 위 배지의 GitHub/Streamlit 링크는 모두 실제 배포된 값으로 반영되어 있다.
+> 배포 절차 자체를 다시 확인하려면 [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) 참고.
 
 차량 내 잔류 탑승자 보호 시스템 **SafeGuard**를 위한 end-to-end agentic
 simulator다. 실제 Raspberry Pi hardware log와 UWB/mmWave virtual sensor를

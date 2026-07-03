@@ -22,8 +22,8 @@ authors:
   # - family-names: "<성>"
   #   given-names: "<이름>"
   #   affiliation: "<소속>"
-repository-code: "https://github.com/<GITHUB_USERNAME>/<REPO_NAME>"
-url: "https://<GITHUB_USERNAME>.github.io/<REPO_NAME>/"
+repository-code: "https://github.com/yoontf0/safeguard-mmwave-simulator"
+url: "https://yoontf0.github.io/safeguard-mmwave-simulator/"
 license: MIT
 keywords:
   - embedded systems

@@ -10,10 +10,9 @@ GitHub/Streamlit Cloud/Zenodo 계정이 있어야 진행 가능한 단계다.
 - [ ] `.gitignore`가 `outputs/csv|figures|report`의 생성물, `__pycache__/`,
       `.pytest_cache/`를 제외하는지 확인 (이미 구성됨)
 - [ ] 첫 커밋: `git add . && git commit -m "Initial commit: SafeGuard TwinLab Agent"`
-- [ ] GitHub에 새 저장소 생성 (public 권장 — Streamlit Cloud free tier,
-      GitHub Pages, Zenodo 연동 모두 public repo가 가장 간단함)
-- [ ] `git remote add origin https://github.com/<GITHUB_USERNAME>/<REPO_NAME>.git`
-- [ ] `git push -u origin main`
+- [x] GitHub 저장소 확정: https://github.com/yoontf0/safeguard-mmwave-simulator
+- [ ] `git remote add origin https://github.com/yoontf0/safeguard-mmwave-simulator.git`
+- [ ] `git push -u origin main` (아직 push 전이라면 최신 코드를 push할 것)
 
 ## 2) Streamlit Community Cloud 배포
 
@@ -26,21 +25,24 @@ GitHub/Streamlit Cloud/Zenodo 계정이 있어야 진행 가능한 단계다.
 - [ ] 배포 후 최초 로딩 시 Demo Mode 4개 버튼과 Failure Scenario 버튼이
       정상 동작하는지, Paper-ready 자동 생성 버튼이 오류 없이 실행되는지
       직접 클릭해 확인
-- [ ] 배포된 앱 URL을 확보 (예: `https://<app-name>.streamlit.app`)
+- [x] 배포된 앱 URL 확보: https://safeguard-mmwave-simulator.streamlit.app
 
 ## 3) README/문서에 실제 URL 반영
 
-- [ ] `README.md` 상단 3개 배지의 `<GITHUB_USERNAME>/<REPO_NAME>`을 실제
-      값으로 교체 (Open in Streamlit 배지는 실제 배포 URL로 교체)
-- [ ] `docs/index.md`의 Live Demo / Source Code 링크도 동일하게 교체
-- [ ] `CITATION.cff`의 `repository-code`, `url`, 저자 정보(`<팀장 성>` 등)를
-      실제 값으로 교체
+- [x] GitHub 저장소 URL(`yoontf0/safeguard-mmwave-simulator`)을 README.md,
+      docs/index.md, CITATION.cff, PAPER_LINK_QR_KR.md, DEPLOYMENT_CHECKLIST.md
+      전체에 반영 완료
+- [x] Streamlit 배포 URL(`https://safeguard-mmwave-simulator.streamlit.app`)을
+      `README.md`(Open in Streamlit 배지), `docs/index.md`(Live Demo 링크),
+      `PAPER_LINK_QR_KR.md`(전체) 에 반영 완료
+- [ ] `CITATION.cff`의 저자 정보(`<팀장 성>`, `<팀장 이름>`, `<소속 기관/학교>`)를
+      실제 값으로 교체 (아직 placeholder 상태)
 
 ## 4) GitHub Pages 활성화
 
 - [ ] GitHub 저장소 → Settings → Pages
 - [ ] Source: `Deploy from a branch` 선택, Branch: `main` / `/docs` 선택
-- [ ] 저장 후 수 분 내 `https://<GITHUB_USERNAME>.github.io/<REPO_NAME>/`에서
+- [ ] 저장 후 수 분 내 `https://yoontf0.github.io/safeguard-mmwave-simulator/`에서
       `docs/index.md`가 렌더링되는지 확인
 - [ ] `docs/sample_outputs/`의 표/그림/텍스트 링크가 정상적으로 열리는지 확인
 
@@ -76,3 +78,7 @@ GitHub/Streamlit Cloud/Zenodo 계정이 있어야 진행 가능한 단계다.
 - ✅ `docs/index.md`, `docs/sample_outputs/`(paper-ready 산출물 12개) 준비 완료
 - ✅ `CITATION.cff`, `LICENSE`(MIT) 준비 완료 (저자 placeholder만 교체 필요)
 - ✅ pytest 51개 전체 통과, 대시보드 mmWave profile(C4001/TI) 양쪽 라이브 검증 완료
+- ✅ GitHub 저장소 URL(`https://github.com/yoontf0/safeguard-mmwave-simulator`)과
+  Streamlit 배포 URL(`https://safeguard-mmwave-simulator.streamlit.app`) 모두
+  확정 및 전체 문서 반영 완료. 남은 것은 CITATION.cff 저자 정보와
+  섹션 4~6(GitHub Pages 활성화, Zenodo DOI, 배포 앱 라이브 점검)뿐이다.
