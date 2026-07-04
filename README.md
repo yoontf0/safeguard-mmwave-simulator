@@ -379,7 +379,9 @@ Wake-up 배타성, 모델 비교, 리포트 생성 문구까지 pytest로 검증
 
 ## 12. 한계와 향후 개선점
 
-- 모든 전력 값은 **추정 전력 모델**이며 실측이 아니다. `outputs/report/limitations_kr.txt`(자동 생성)에 최신 상세 내용이 저장된다.
+- 공모전에 제출한 논문에는 실측 전력 값을 이 시뮬레이터에 넣어서 결과 분석 후 제출하였지만, 
+- 현재 이 시뮬레이터의 전력 값은 **추정 전력 모델**이며 실측이 아니다. 
+- `outputs/report/limitations_kr.txt`(자동 생성)에 최신 상세 내용이 저장된다.
 - UWB/mmWave는 **output-level virtual sensor simulation**이므로 실제
   다중경로 반사, 노이즈 특성 등 raw signal 수준의 현상은 반영하지 않는다.
 - hardware_log.csv를 업로드해도 UWB/mmWave/Camera virtual sensor는 여전히
