@@ -12,9 +12,6 @@ simulator다. 실제 Raspberry Pi hardware log와 UWB/mmWave virtual sensor를
 결합하여 event-driven state machine, actuator 제어, 추정 전력(estimated
 power) 계산, 비교 모델 분석, 논문용 표/그림/해석문까지 자동 생성한다.
 
-> 이 프로젝트는 임베디드 시스템 공모전/논문 제출용으로 제작되었으며,
-> **시뮬레이션 기반 추정 결과**를 다룬다. 아래 "한계와 향후 개선점"을
-> 반드시 함께 읽어야 한다.
 >
 > 라이브 데모 : https://safeguard-mmwave-simulator.streamlit.app/ 
 
