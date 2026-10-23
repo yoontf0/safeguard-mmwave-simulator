@@ -60,6 +60,11 @@ python hardware/mmwave/mmwave_reader.py --duration 60 --csv mmwave_log.csv
 ## 다음 할 일 (블록 B3)
 
 - [x] 노트북에서 `mmwave_reader.py` 동작 확인 (10/23)
-- [ ] Pi에 보드 연결 → `ls /dev/ttyUSB*` 2개 확인 → `mmwave_reader.py` 실행, 프레임/초 기록
-- [ ] USB 탈착 시 종료 코드 2로 끝나는지 확인
+- [x] Pi에서 실행 (10/23): 포트 자동 탐색 성공(`/dev/serial/by-id/...CP2105...01E86213-if00/if01`),
+      30초 동안 **300 프레임, 누락 0, 10 프레임/초**. Pi OS trixie, `python3-serial` 3.5는 기본 설치돼 있었음
+- [x] 60초 CSV 기록 (10/23, Pi): 59.9초 동안 **600 프레임, 끊김 0**, 프레임당 점 평균 11.0개(최대 32개),
+      가장 가까운 점이 0.3 m보다 먼 프레임 230개 (사람 움직임). 파일은 Pi `~/mmwave_log.csv`
+- [x] USB 탈착 (10/23, Pi): 121.7초 실행 중 뽑음 → `mmWave 포트 끊김: device reports readiness to read but
+      returned no data (device disconnected ...)` 출력 후 바로 종료 (종료 코드 2 경로). 다시 꽂으면 같은 by-id 이름으로 돌아옴
+- **B3 완료**
 - [ ] 호흡 검출용 랩(Vital Signs / People Counting) 결정은 그다음
