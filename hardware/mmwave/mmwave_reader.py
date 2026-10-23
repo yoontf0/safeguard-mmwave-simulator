@@ -1,12 +1,15 @@
 """
 SafeGuard 블록 B3 - IWR6843ISK-ODS mmWave 수신 확인 스크립트.
 
-보드에 mmWave SDK 3.6 Out-of-Box 데모(xwr68xx_mmw_demo.bin)가 구워져 있고
-S1이 Functional 모드(1 OFF, 2 OFF, 3 ON, 4 ON, 5 OFF)일 때 사용한다.
+S1이 Functional 모드(1 OFF, 2 OFF, 3 ON, 4 ON, 5 OFF)일 때 사용한다. 두 펌웨어를 모두 읽는다:
+    - mmWave SDK 3.6 Out-of-Box 데모 (xwr68xx_mmw_demo.bin): 점 구름 TLV 1
+    - Radar Toolbox 3D People Tracking (3D_people_track_6843_demo.bin):
+      압축 점 구름 TLV 1020, 추적 대상 TLV 1010, 재실 여부 TLV 1021
+      (형식은 Radar Toolbox 4.00 Industrial Visualizer의 parseFrame.py / parseTLVs.py 기준)
 
 1. CLI 포트(115200)로 .cfg 명령을 한 줄씩 보낸다 (sensorStop ... sensorStart).
 2. 데이터 포트(921600)에서 TLV 프레임을 받아 매직워드로 자르고 파싱한다.
-3. 1초마다 프레임/초, 마지막 프레임 점 개수, 가장 가까운 점 거리를 출력한다.
+3. 1초마다 프레임/초, 마지막 프레임 점 개수, 가장 가까운 점 거리(+ 추적 대상 수)를 출력한다.
 
 src/ 시뮬레이터와 무관한 하드웨어 전용 스크립트다 (pyserial만 필요).
 보드 USB 칩이 CP2105라서 포트가 2개 생긴다:
@@ -48,7 +51,13 @@ HEADER_FMT = "<8I"  # version, totalPacketLen, platform, frameNumber,
                     # timeCpuCycles, numDetectedObj, numTLVs, subFrameNumber
 HEADER_LEN = len(MAGIC) + struct.calcsize(HEADER_FMT)  # 40
 TLV_HEADER_FMT = "<2I"  # type, length(payload 바이트, TLV 헤더 제외)
-TLV_DETECTED_POINTS = 1  # float32 x, y, z, doppler (16바이트/점)
+TLV_DETECTED_POINTS = 1  # Out-of-Box: float32 x, y, z, doppler (16바이트/점)
+TLV_TRACKS = 1010  # People Tracking: uint32 tid + float32 27개 (112바이트/대상)
+TLV_COMPRESSED_POINTS = 1020  # People Tracking: 단위 float32 5개 + 점마다 int8 el, az, int16 dop, uint16 rng, snr
+TLV_PRESENCE = 1021  # People Tracking: uint32 (1 = 재실 영역 안에 누군가 있음)
+TRACK_FMT = "<I27f"
+POINT_UNIT_FMT = "<5f"  # elevation, azimuth, doppler, range, snr 단위
+POINT_FMT = "<2bh2H"
 MAX_PACKET_LEN = 64 * 1024  # 이보다 크면 깨진 헤더로 보고 버린다
 
 
@@ -97,24 +106,70 @@ def send_cfg(cli: serial.Serial, lines: list[str]) -> bool:
     return ok
 
 
+def _parse_compressed_points(payload: bytes) -> list[tuple[float, float, float, float]]:
+    """TLV 1020: 압축된 구면 좌표 점을 (x, y, z, doppler)로 바꾼다 (TI parseTLVs.py와 같은 식)."""
+    unit_size = struct.calcsize(POINT_UNIT_FMT)
+    point_size = struct.calcsize(POINT_FMT)
+    if len(payload) < unit_size:
+        return []
+    el_u, az_u, dop_u, rng_u, _snr_u = struct.unpack_from(POINT_UNIT_FMT, payload, 0)
+    points = []
+    for off in range(unit_size, len(payload) - point_size + 1, point_size):
+        el, az, dop, rng, _snr = struct.unpack_from(POINT_FMT, payload, off)
+        r, a, e = rng * rng_u, az * az_u, el * el_u
+        points.append((r * math.cos(e) * math.sin(a), r * math.cos(e) * math.cos(a),
+                       r * math.sin(e), dop * dop_u))
+    return points
+
+
 def parse_frame(packet: bytes) -> dict:
-    """매직워드로 시작하는 완전한 패킷 하나를 파싱한다."""
+    """매직워드로 시작하는 완전한 패킷 하나를 파싱한다.
+
+    TLV가 패킷 밖으로 넘어가면(전송 중 깨진 프레임) 거기서 멈추고 bad=True로 표시한다.
+    tracks/presence는 People Tracking 펌웨어일 때만 값이 생긴다 (Out-of-Box면 None).
+    """
     (_version, total_len, platform, frame_number, _cycles,
      num_obj, num_tlvs, _subframe) = struct.unpack_from(HEADER_FMT, packet, len(MAGIC))
     points = []
+    tracks = None
+    presence = None
+    bad = False
+    track_size = struct.calcsize(TRACK_FMT)
     offset = HEADER_LEN
     for _ in range(num_tlvs):
-        if offset + 8 > total_len:
+        if offset + 8 > len(packet):
+            bad = True
             break
         tlv_type, tlv_len = struct.unpack_from(TLV_HEADER_FMT, packet, offset)
         offset += 8
+        if offset + tlv_len > len(packet):
+            bad = True
+            break
+        payload = packet[offset:offset + tlv_len]
         if tlv_type == TLV_DETECTED_POINTS:
             for i in range(min(num_obj, tlv_len // 16)):
-                x, y, z, v = struct.unpack_from("<4f", packet, offset + i * 16)
-                points.append((x, y, z, v))
+                points.append(struct.unpack_from("<4f", payload, i * 16))
+        elif tlv_type == TLV_COMPRESSED_POINTS:
+            points = _parse_compressed_points(payload)
+        elif tlv_type == TLV_TRACKS:
+            tracks = []
+            for i in range(tlv_len // track_size):
+                tid, x, y, z = struct.unpack_from("<I3f", payload, i * track_size)
+                tracks.append((tid, x, y, z))
+        elif tlv_type == TLV_PRESENCE and tlv_len >= 4:
+            presence = struct.unpack_from("<I", payload, 0)[0]
         offset += tlv_len
-    return {"frame_number": frame_number, "platform": platform,
-            "num_obj": num_obj, "points": points}
+    # TI parseFrame.py와 같은 무결성 검사: 장치는 패킷을 32바이트 배수로 채워 보낸다.
+    # TLV 길이 합이 헤더의 totalPacketLen과 안 맞으면 전송 중 바이트가 빠진 프레임이다.
+    if not bad and 32 * math.ceil(offset / 32) != total_len:
+        bad = True
+    if presence not in (None, 0, 1):
+        bad = True
+    if bad:
+        # 깨진 프레임의 값은 믿을 수 없으니 기록하지 않는다 (프레임 번호만 남김)
+        points, tracks, presence = [], None, None
+    return {"frame_number": frame_number, "platform": platform, "num_obj": num_obj,
+            "points": points, "tracks": tracks, "presence": presence, "bad": bad}
 
 
 class FrameReader:
@@ -165,6 +220,10 @@ def run(args: argparse.Namespace) -> int:
     try:
         cli = serial.Serial(cli_port, CLI_BAUD, timeout=0.1)
         data = serial.Serial(data_port, DATA_BAUD, timeout=0.1)
+        # Windows 드라이버 수신 버퍼 기본값(4 KB)은 People Tracking 프레임 몇 개면 넘친다.
+        # 10/23 노트북 15분 시험에서 프레임 약 7%가 깨지거나 빠졌다. (리눅스에는 이 함수가 없음)
+        if hasattr(data, "set_buffer_size"):
+            data.set_buffer_size(rx_size=1 << 20)
     except serial.SerialException as exc:
         print(f"포트를 열 수 없습니다: {exc}")
         print("mmWave Demo Visualizer나 UniFlash가 켜져 있으면 닫고 다시 실행하세요.")
@@ -185,7 +244,8 @@ def run(args: argparse.Namespace) -> int:
         if args.csv:
             csv_file = open(args.csv, "w", newline="", encoding="utf-8")
             writer = csv.writer(csv_file)
-            writer.writerow(["wall_time", "frame_number", "num_points", "nearest_range_m"])
+            writer.writerow(["wall_time", "frame_number", "num_points", "nearest_range_m",
+                             "num_tracks", "presence", "bad_frame"])
 
         reader = FrameReader()
         t_start = time.monotonic()
@@ -193,6 +253,8 @@ def run(args: argparse.Namespace) -> int:
         frames_in_window = 0
         total_frames = 0
         dropped = 0
+        bad_frames = 0
+        tracker_fw = False  # People Tracking 펌웨어 TLV를 한 번이라도 봤는지
         last_frame_no = None
         last = None
 
@@ -205,10 +267,20 @@ def run(args: argparse.Namespace) -> int:
                     dropped += frame["frame_number"] - last_frame_no - 1
                 last_frame_no = frame["frame_number"]
                 last = frame
+                bad_frames += frame["bad"]
+                # 추적 대상이 0명인 프레임은 TLV 1010이 아예 없을 수 있어서, 펌웨어 종류로 판단한다
+                if frame["tracks"] is not None or frame["presence"] is not None:
+                    tracker_fw = True
                 if writer:
                     near = nearest_range_m(frame["points"])
                     writer.writerow([f"{time.time():.3f}", frame["frame_number"],
-                                     len(frame["points"]), "" if near is None else f"{near:.3f}"])
+                                     len(frame["points"]), "" if near is None else f"{near:.3f}",
+                                     len(frame["tracks"] or []) if tracker_fw else "",
+                                     "" if frame["presence"] is None else frame["presence"],
+                                     int(frame["bad"])])
+                if args.show_points and frame["tracks"]:
+                    for tid, x, y, z in frame["tracks"]:
+                        print(f"    추적 #{tid}: x={x:+.2f} y={y:+.2f} z={z:+.2f} m")
                 if args.show_points:
                     for x, y, z, v in frame["points"]:
                         print(f"    x={x:+.2f} y={y:+.2f} z={z:+.2f} m  v={v:+.2f} m/s")
@@ -221,9 +293,10 @@ def run(args: argparse.Namespace) -> int:
                 else:
                     near = nearest_range_m(last["points"])
                     near_txt = "-" if near is None else f"{near:.2f} m"
+                    track_txt = f"추적 {len(last['tracks'] or [])}명 | " if tracker_fw else ""
                     print(f"[{now - t_start:5.1f}s] {fps:4.1f} 프레임/초 | "
-                          f"프레임 #{last['frame_number']} | 점 {len(last['points'])}개 | "
-                          f"가장 가까운 점 {near_txt} | 누락 {dropped}")
+                          f"프레임 #{last['frame_number']} | {track_txt}점 {len(last['points'])}개 | "
+                          f"가장 가까운 점 {near_txt} | 누락 {dropped} | 깨짐 {bad_frames}")
                 frames_in_window = 0
                 t_report = now
     except serial.SerialException as exc:
@@ -242,7 +315,7 @@ def run(args: argparse.Namespace) -> int:
         if csv_file:
             csv_file.close()
 
-    print(f"총 {total_frames} 프레임, 누락 {dropped}")
+    print(f"총 {total_frames} 프레임, 누락 {dropped}, 깨짐 {bad_frames}")
     return 0
 
 
@@ -254,7 +327,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--no-cfg", action="store_true", help="설정을 보내지 않고 수신만 (이미 동작 중일 때)")
     p.add_argument("--duration", type=float, default=0, help="실행 시간(초), 0이면 Ctrl+C까지")
     p.add_argument("--csv", type=Path, help="프레임별 기록 CSV 경로")
-    p.add_argument("--show-points", action="store_true", help="점 좌표를 모두 출력")
+    p.add_argument("--show-points", action="store_true", help="추적 대상 좌표를 모두 출력 (People Tracking)")
     return p.parse_args()
 
 

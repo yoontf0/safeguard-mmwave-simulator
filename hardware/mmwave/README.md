@@ -57,6 +57,29 @@ python hardware/mmwave/mmwave_reader.py --duration 60 --csv mmwave_log.csv
 - cfg의 `clutterRemoval -1 0`(정적 클러터 제거 꺼짐) 때문에 벽·가구도 점으로 잡힌다.
   차 안 재실 판단에서는 `clutterRemoval -1 1`로 켜고 비교해 볼 것.
 
+## People Tracking 펌웨어에서도 사용 (10/23 확장)
+
+`mmwave_reader.py`는 3D People Tracking 펌웨어 출력도 읽는다 (압축 점 구름 TLV 1020, 추적 대상 1010,
+재실 여부 1021, 형식은 Radar Toolbox 4.00 Industrial Visualizer 파서 기준). 출력에 `추적 N명`이 붙고,
+CSV에 `num_tracks`, `presence`, `bad_frame` 열이 추가된다. TI와 같은 길이 검사로 깨진 프레임을 걸러 값은 버린다.
+
+```bash
+python hardware/mmwave/mmwave_reader.py --cli COM6 --data COM7 --duration 900 --csv pt.csv \
+  --cfg C:\ti\radar_toolbox_4_00_00_05\source\ti\examples\Industrial_and_Personal_Electronics\People_Tracking\3D_People_Tracking\chirp_configs\ODS_6m_staticRetention.cfg
+```
+
+10/23 노트북 시험 (원본 `ODS_6m_staticRetention.cfg`, 방에 약 3명):
+
+| 시험 | 결과 |
+|---|---|
+| Industrial Visualizer | 약 6분(6,251프레임) 뒤 보드 응답 없음 → USB 재연결 필요 |
+| `mmwave_reader.py` 15분 | **멈춤 없음** (프레임 공백 최대 0.15초), 16.9 프레임/초, 추적 3명 62% / 4명 25% |
+| 같은 조건 데이터 손실 | 프레임 **약 7~8%가 깨지거나 빠짐**. 점 개수와 무관하게 일정 → 노트북 수신 쪽 의심 (수신 버퍼 1 MB로 늘려도 같음). Pi + Out-of-Box는 손실 0이었으므로 **Pi에서 People Tracking 손실 확인 필요** |
+
+- 한 번 `sensorStop` 된 뒤에는 cfg를 다시 보내도 `sensorStart`가 응답하지 않는다 → **USB를 뺐다 꽂고** 실행.
+- Industrial Visualizer는 **exe 폴더에서 직접 더블클릭**해야 한다. 검색창으로 실행하면 작업 폴더가 쓰기 금지라
+  `PermissionError: 'cache'` → `Parsing .cfg file failed`가 난다. 순서는 Connect → Start and Send Configuration.
+
 ## 다음 할 일 (블록 B3)
 
 - [x] 노트북에서 `mmwave_reader.py` 동작 확인 (10/23)
