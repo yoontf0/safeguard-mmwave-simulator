@@ -174,8 +174,9 @@ def parse_frame(packet: bytes) -> dict:
         offset += tlv_len
     # TI parseFrame.py와 같은 무결성 검사: 장치는 패킷을 32바이트 배수로 채워 보낸다.
     # TLV 길이 합이 헤더의 totalPacketLen과 안 맞으면 전송 중 바이트가 빠진 프레임이다.
-    # 단 Vital Signs 데모는 이 규칙을 따르지 않아 TI도 검사를 건너뛴다 (DEMO_VITALS 예외).
-    if not bad and vitals is None and 32 * math.ceil(offset / 32) != total_len:
+    # 단 Vital Signs 데모는 채우기 없이 딱 맞게 보낸다 (TI도 DEMO_VITALS는 이 검사를 건너뜀).
+    # 10/24 Pi 시험: 호흡 TLV가 없는 프레임도 채우기가 없어서, "딱 맞음"도 정상으로 인정한다.
+    if not bad and total_len not in (offset, 32 * math.ceil(offset / 32)):
         bad = True
     if presence not in (None, 0, 1):
         bad = True
