@@ -5,6 +5,8 @@ S1이 Functional 모드(1 OFF, 2 OFF, 3 ON, 4 ON, 5 OFF)일 때 사용한다. �
     - mmWave SDK 3.6 Out-of-Box 데모 (xwr68xx_mmw_demo.bin): 점 구름 TLV 1
     - Radar Toolbox 3D People Tracking (3D_people_track_6843_demo.bin):
       압축 점 구름 TLV 1020, 추적 대상 TLV 1010, 재실 여부 TLV 1021
+    - Radar Toolbox Vital Signs With People Tracking (vital_signs_tracking_6843ISK_demo.bin):
+      위 추적 TLV + 호흡·심박 TLV 1040
       (형식은 Radar Toolbox 4.00 Industrial Visualizer의 parseFrame.py / parseTLVs.py 기준)
 
 1. CLI 포트(115200)로 .cfg 명령을 한 줄씩 보낸다 (sensorStop ... sensorStart).
@@ -55,7 +57,12 @@ TLV_DETECTED_POINTS = 1  # Out-of-Box: float32 x, y, z, doppler (16바이트/점
 TLV_TRACKS = 1010  # People Tracking: uint32 tid + float32 27개 (112바이트/대상)
 TLV_COMPRESSED_POINTS = 1020  # People Tracking: 단위 float32 5개 + 점마다 int8 el, az, int16 dop, uint16 rng, snr
 TLV_PRESENCE = 1021  # People Tracking: uint32 (1 = 재실 영역 안에 누군가 있음)
+TLV_VITALS = 1040  # Vital Signs: uint16 id, rangeBin + float32 breathDeviation, heartRate, breathRate,
+                   # 심박 파형 15개, 호흡 파형 15개 (TI parseTLVs.py parseVitalSignsTLV, 136바이트)
 TRACK_FMT = "<I27f"
+VITALS_FMT = "<2H33f"
+# 세 펌웨어가 내보내는 TLV 번호 (Out-of-Box 1~10, People Tracking 1010~1021, Vital Signs 1040)
+KNOWN_TLVS = set(range(1, 11)) | {1010, 1011, 1012, 1020, 1021, TLV_VITALS}
 POINT_UNIT_FMT = "<5f"  # elevation, azimuth, doppler, range, snr 단위
 POINT_FMT = "<2bh2H"
 MAX_PACKET_LEN = 64 * 1024  # 이보다 크면 깨진 헤더로 보고 버린다
@@ -133,6 +140,7 @@ def parse_frame(packet: bytes) -> dict:
     points = []
     tracks = None
     presence = None
+    vitals = None
     bad = False
     track_size = struct.calcsize(TRACK_FMT)
     offset = HEADER_LEN
@@ -142,7 +150,8 @@ def parse_frame(packet: bytes) -> dict:
             break
         tlv_type, tlv_len = struct.unpack_from(TLV_HEADER_FMT, packet, offset)
         offset += 8
-        if offset + tlv_len > len(packet):
+        if tlv_type not in KNOWN_TLVS or offset + tlv_len > len(packet):
+            # TI Visualizer도 모르는 TLV 번호가 나오면 그 프레임을 버린다 ("Invalid TLV type ... Dropping frame")
             bad = True
             break
         payload = packet[offset:offset + tlv_len]
@@ -158,18 +167,23 @@ def parse_frame(packet: bytes) -> dict:
                 tracks.append((tid, x, y, z))
         elif tlv_type == TLV_PRESENCE and tlv_len >= 4:
             presence = struct.unpack_from("<I", payload, 0)[0]
+        elif tlv_type == TLV_VITALS and tlv_len >= struct.calcsize(VITALS_FMT):
+            v = struct.unpack_from(VITALS_FMT, payload, 0)
+            vitals = {"id": v[0], "range_bin": v[1], "breath_dev": v[2],
+                      "heart_rate": v[3], "breath_rate": v[4]}
         offset += tlv_len
     # TI parseFrame.py와 같은 무결성 검사: 장치는 패킷을 32바이트 배수로 채워 보낸다.
     # TLV 길이 합이 헤더의 totalPacketLen과 안 맞으면 전송 중 바이트가 빠진 프레임이다.
-    if not bad and 32 * math.ceil(offset / 32) != total_len:
+    # 단 Vital Signs 데모는 이 규칙을 따르지 않아 TI도 검사를 건너뛴다 (DEMO_VITALS 예외).
+    if not bad and vitals is None and 32 * math.ceil(offset / 32) != total_len:
         bad = True
     if presence not in (None, 0, 1):
         bad = True
     if bad:
         # 깨진 프레임의 값은 믿을 수 없으니 기록하지 않는다 (프레임 번호만 남김)
-        points, tracks, presence = [], None, None
+        points, tracks, presence, vitals = [], None, None, None
     return {"frame_number": frame_number, "platform": platform, "num_obj": num_obj,
-            "points": points, "tracks": tracks, "presence": presence, "bad": bad}
+            "points": points, "tracks": tracks, "presence": presence, "vitals": vitals, "bad": bad}
 
 
 class FrameReader:
@@ -245,7 +259,8 @@ def run(args: argparse.Namespace) -> int:
             csv_file = open(args.csv, "w", newline="", encoding="utf-8")
             writer = csv.writer(csv_file)
             writer.writerow(["wall_time", "frame_number", "num_points", "nearest_range_m",
-                             "num_tracks", "presence", "bad_frame"])
+                             "num_tracks", "presence", "bad_frame",
+                             "breath_rate", "heart_rate", "breath_dev", "range_bin"])
 
         reader = FrameReader()
         t_start = time.monotonic()
@@ -257,6 +272,7 @@ def run(args: argparse.Namespace) -> int:
         tracker_fw = False  # People Tracking 펌웨어 TLV를 한 번이라도 봤는지
         last_frame_no = None
         last = None
+        last_vitals = None  # Vital Signs: 마지막으로 받은 호흡·심박 값
 
         while args.duration <= 0 or time.monotonic() - t_start < args.duration:
             chunk = data.read(data.in_waiting or 1)
@@ -271,13 +287,21 @@ def run(args: argparse.Namespace) -> int:
                 # 추적 대상이 0명인 프레임은 TLV 1010이 아예 없을 수 있어서, 펌웨어 종류로 판단한다
                 if frame["tracks"] is not None or frame["presence"] is not None:
                     tracker_fw = True
+                vit = frame["vitals"]
+                if vit is not None:
+                    tracker_fw = True  # Vital Signs 펌웨어도 사람 추적을 함께 한다
+                    last_vitals = vit
                 if writer:
                     near = nearest_range_m(frame["points"])
                     writer.writerow([f"{time.time():.3f}", frame["frame_number"],
                                      len(frame["points"]), "" if near is None else f"{near:.3f}",
                                      len(frame["tracks"] or []) if tracker_fw else "",
                                      "" if frame["presence"] is None else frame["presence"],
-                                     int(frame["bad"])])
+                                     int(frame["bad"]),
+                                     "" if vit is None else f"{vit['breath_rate']:.1f}",
+                                     "" if vit is None else f"{vit['heart_rate']:.1f}",
+                                     "" if vit is None else f"{vit['breath_dev']:.4f}",
+                                     "" if vit is None else vit["range_bin"]])
                 if args.show_points and frame["tracks"]:
                     for tid, x, y, z in frame["tracks"]:
                         print(f"    추적 #{tid}: x={x:+.2f} y={y:+.2f} z={z:+.2f} m")
@@ -294,8 +318,16 @@ def run(args: argparse.Namespace) -> int:
                     near = nearest_range_m(last["points"])
                     near_txt = "-" if near is None else f"{near:.2f} m"
                     track_txt = f"추적 {len(last['tracks'] or [])}명 | " if tracker_fw else ""
+                    vit_txt = ""
+                    if last_vitals is not None:
+                        # TI Visualizer와 같은 표시 규칙: 흔들림 0 = 값 없음, 0.02 미만 = 숨 참음
+                        dev = last_vitals["breath_dev"]
+                        breath = ("-" if dev == 0 else "숨참음" if dev < 0.02
+                                  else f"{last_vitals['breath_rate']:.1f}/분")
+                        vit_txt = (f"호흡 {breath} | 심박 {last_vitals['heart_rate']:.1f} | "
+                                   f"거리칸 {last_vitals['range_bin']} | ")
                     print(f"[{now - t_start:5.1f}s] {fps:4.1f} 프레임/초 | "
-                          f"프레임 #{last['frame_number']} | {track_txt}점 {len(last['points'])}개 | "
+                          f"프레임 #{last['frame_number']} | {track_txt}{vit_txt}점 {len(last['points'])}개 | "
                           f"가장 가까운 점 {near_txt} | 누락 {dropped} | 깨짐 {bad_frames}")
                 frames_in_window = 0
                 t_report = now
@@ -327,7 +359,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--no-cfg", action="store_true", help="설정을 보내지 않고 수신만 (이미 동작 중일 때)")
     p.add_argument("--duration", type=float, default=0, help="실행 시간(초), 0이면 Ctrl+C까지")
     p.add_argument("--csv", type=Path, help="프레임별 기록 CSV 경로")
-    p.add_argument("--show-points", action="store_true", help="추적 대상 좌표를 모두 출력 (People Tracking)")
+    p.add_argument("--show-points", action="store_true", help="추적 대상과 점 좌표를 모두 출력")
     return p.parse_args()
 
 
