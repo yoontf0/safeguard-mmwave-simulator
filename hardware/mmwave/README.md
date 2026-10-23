@@ -63,7 +63,8 @@ python hardware/mmwave/mmwave_reader.py --duration 60 --csv mmwave_log.csv
 - [x] Pi에서 실행 (10/23): 포트 자동 탐색 성공(`/dev/serial/by-id/...CP2105...01E86213-if00/if01`),
       30초 동안 **300 프레임, 누락 0, 10 프레임/초**. Pi OS trixie, `python3-serial` 3.5는 기본 설치돼 있었음
 - [x] 60초 CSV 기록 (10/23, Pi): 59.9초 동안 **600 프레임, 끊김 0**, 프레임당 점 평균 11.0개(최대 32개),
-      가장 가까운 점이 0.3 m보다 먼 프레임 230개 (사람 움직임). 파일은 Pi `~/mmwave_log.csv`
+      파일은 Pi `~/mmwave_log.csv`. ⚠️ 이 기록은 **보드를 손으로 앞뒤로 움직이며** 잰 것이라 통신 안정성(프레임 끊김) 증거로만 쓴다.
+      점 개수·거리 값은 센서가 고정된 차량 상황을 대표하지 않는다 (센서가 움직이면 벽·책상도 움직이는 물체로 보임)
 - [x] USB 탈착 (10/23, Pi): 121.7초 실행 중 뽑음 → `mmWave 포트 끊김: device reports readiness to read but
       returned no data (device disconnected ...)` 출력 후 바로 종료 (종료 코드 2 경로). 다시 꽂으면 같은 by-id 이름으로 돌아옴
 - **B3 완료**
